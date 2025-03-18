@@ -17,13 +17,16 @@ def hash_file(filename):
     """
     sha = hashlib.sha256()
 
-    with open(filename, "rb") as f:
-        while True:
-            data = f.read(BUF_SIZE)
-            if not data:
-                break
-            sha.update(data)
-        return sha.hexdigest()
+    try:
+        with open(filename, "rb") as f:
+            while True:
+                data = f.read(BUF_SIZE)
+                if not data:
+                    break
+                sha.update(data)
+            return sha.hexdigest()
+    except FileNotFoundError:
+        return "Unknown"
 
 
 class MyEventHandler(LoggingEventHandler):
@@ -39,8 +42,11 @@ class MyEventHandler(LoggingEventHandler):
         if event.is_directory:
             self.logger.info("Modified directory: %s", event.src_path)
         else:
+            path = event.dest_path if len(event.dest_path) > 0 else event.src_path
             self.logger.info(
-                "Modified file: %s (%s)", event.src_path, hash_file(event.src_path)
+                "Modified file: %s (%s)",
+                path,
+                hash_file(path),
             )
 
 
@@ -52,6 +58,8 @@ logging.basicConfig(
 event_handler = MyEventHandler()
 observer = Observer()
 observer.schedule(event_handler, ".", recursive=True)
+observer.schedule(event_handler, "/Volumes/", recursive=True)
+
 observer.start()
 try:
     while observer.is_alive():

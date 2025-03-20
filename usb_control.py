@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
+
 import threading
 import subprocess
 import json
@@ -24,7 +26,7 @@ logging.basicConfig(
 LOGGER = logging.getLogger(__name__)
 
 
-class DiskMonitor:
+class _DiskMonitor(ABC):
     def __init__(
         self, filter_disks: list[dict[str, str]] | tuple[dict[str, str]] = None
     ):
@@ -74,6 +76,10 @@ class DiskMonitor:
         if update_last_check_disks:
             self.last_check_disks = current_disks.copy()
         return removed_disks, added_disks
+
+    @abstractmethod
+    def __get_disks(self):
+        pass
 
     def get_mounted_disks(self) -> dict[str, dict[str, str]]:
         """
@@ -178,6 +184,18 @@ class DiskMonitor:
             self.check_changes(on_mount=on_mount, on_unmount=on_unmount)
             self._stop_thread.wait(check_every_seconds)
 
+    def __del__(self):
+        self.stop_monitoring(warn_if_was_stopped=False)
+
+
+class DarwinDiskMonitor(_DiskMonitor):
+    """
+    MacOS implementation of DiskMonitor
+    """
+
+    def __init__(self):
+        return super().__init__()
+
     def __get_disks(self) -> dict[str, dict[str, str]]:
         """
         Retrieves the list of disks using the system_profiler
@@ -206,9 +224,6 @@ class DiskMonitor:
             disks[name] = disk_dict | physical
 
         return disks
-
-    def __del__(self):
-        self.stop_monitoring(warn_if_was_stopped=False)
 
 
 observed_paths = {}
@@ -280,7 +295,7 @@ def do_unmount(_: str, disk_info: dict[str, str]) -> None:
         remove_observed_endpoint(mount_point)
 
 
-disk_monitor = DiskMonitor(filter_disks=[{"protocol": "USB"}])
+disk_monitor = DarwinDiskMonitor(filter_disks=[{"protocol": "USB"}])
 disk_monitor.start_monitoring(on_mount=do_mount, on_unmount=do_unmount)
 event_handler = MyEventHandler(logger=LOGGER)
 observer = Observer()
